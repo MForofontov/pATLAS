@@ -117,6 +117,3 @@ class MetalDatabase(db.Model):
 
     def __repr__(self):
          return "<MetalDatabase %r>" % (self.json_entry)
-
-with app.app_context():
-    db.create_all()
