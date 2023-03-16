@@ -22,12 +22,12 @@ try:
     from utils.hist_util import plot_histogram
     from utils.taxa_fetch import executor
     from utils.crowd_curation import black_list
-    from db_manager.db_app import db, models
+    from db_manager.db_app import db, app, models
 except ImportError:
     from patlas.utils.hist_util import plot_histogram
     from patlas.utils.taxa_fetch import executor
     from patlas.utils.crowd_curation import black_list
-    from patlas.db_manager.db_app import db, models
+    from patlas.db_manager.db_app import db, app, models
 
 # TODO This is a rather sketchy solution, remove this with a refactor of node_
 #  crawler
@@ -414,51 +414,52 @@ def genomes_parser(main_fasta, mother_directory):
     accession = False
     previous_sequence = []
 
-    for line in if_handle:  ## x coupled with enumerate creates
-        # a counter for every loop
-        linesplit = line.strip().split("_")
-        if line.startswith(">"):
-            if accession:
-                # commit to database previous entry
-                row = models.SequenceDB(
-                        plasmid_id=accession,
-                        sequence_entry="".join(previous_sequence)
-                    )
+    with app.app_context():
+        for line in if_handle:  ## x coupled with enumerate creates
+            # a counter for every loop
+            linesplit = line.strip().split("_")
+            if line.startswith(">"):
+                if accession:
+                    # commit to database previous entry
+                    row = models.SequenceDB(
+                            plasmid_id=accession,
+                            sequence_entry="".join(previous_sequence)
+                        )
 
-                db.session.add(row)
-                db.session.commit()
-                # resets previous_sequence
-                previous_sequence = []
+                    db.session.add(row)
+                    db.session.commit()
+                    # resets previous_sequence
+                    previous_sequence = []
 
-            accession = "_".join(linesplit[0:3]).replace(">","")
+                accession = "_".join(linesplit[0:3]).replace(">","")
 
-            if out_handle:
-                out_handle.close()
+                if out_handle:
+                    out_handle.close()
 
-            out_handle = open(os.path.join("{}_{}.fas".format(out_file,
-                                                              accession)), "w")
-            list_genomes_files.append(os.path.join("{}_{}.fas".format(
-                out_file, accession)))
-            out_handle.write(line)
+                out_handle = open(os.path.join("{}_{}.fas".format(out_file,
+                                                                accession)), "w")
+                list_genomes_files.append(os.path.join("{}_{}.fas".format(
+                    out_file, accession)))
+                out_handle.write(line)
 
-        else:
+            else:
 
-            out_handle.write(line)
-            previous_sequence.append(line)
+                out_handle.write(line)
+                previous_sequence.append(line)
 
-    # commit to database the last entry
-    row = models.SequenceDB(
-        plasmid_id=accession,
-        sequence_entry="".join(previous_sequence)
-    )
+        # commit to database the last entry
+        row = models.SequenceDB(
+            plasmid_id=accession,
+            sequence_entry="".join(previous_sequence)
+        )
 
-    db.session.add(row)
-    db.session.commit()
-    # close database connection
-    db.session.close()
+        db.session.add(row)
+        db.session.commit()
+        # close database connection
+        db.session.close()
 
-    out_handle.close()
-    if_handle.close()
+        out_handle.close()
+        if_handle.close()
 
     return list_genomes_files
 
@@ -761,95 +762,95 @@ def mash_distance_matrix(mother_directory, sequence_info, pvalue, mashdist,
     # new block to get trace_list and num_links
     num_links = 0
     list_of_traces = []
+    with app.app_context():
+        for temp_list, ref_string in (x[:2] for x in mp2):
 
-    for temp_list, ref_string in (x[:2] for x in mp2):
+            # Example of iteration `dic` and lookup table.
+            # dic1 = {"Ac1": [rec2, rec3, rec4]}
+            # dic2 = {"Ac2: [rec1, rec3,rec5]}
+            # lt = {"Ac2": ["Ac1"], "Ac1": ["Ac2"]}
 
-        # Example of iteration `dic` and lookup table.
-        # dic1 = {"Ac1": [rec2, rec3, rec4]}
-        # dic2 = {"Ac2: [rec1, rec3,rec5]}
-        # lt = {"Ac2": ["Ac1"], "Ac1": ["Ac2"]}
+            # Filter temp_list to remove duplicate links
+            if temp_list:
+                # new_dic stores unique links between sequences
+                # None is used for singletons
+                new_dic = {ref_string: [x.to_json() for x in temp_list if
+                                        ref_string not in lookup_table[x.a]]}
+                # new_dic2 stores all links regardless of having being reported
+                # already
+                new_dic2 = {"_".join(ref_string.split("_")[:-1]):
+                                [list(x.to_json().keys())[0] for x in temp_list]}
 
-        # Filter temp_list to remove duplicate links
-        if temp_list:
-            # new_dic stores unique links between sequences
-            # None is used for singletons
-            new_dic = {ref_string: [x.to_json() for x in temp_list if
-                                    ref_string not in lookup_table[x.a]]}
-            # new_dic2 stores all links regardless of having being reported
-            # already
-            new_dic2 = {"_".join(ref_string.split("_")[:-1]):
-                            [list(x.to_json().keys())[0] for x in temp_list]}
+                # Update lookup table
+                for rec in temp_list:
+                    if rec.a not in lookup_table[ref_string]:
+                        lookup_table[ref_string].append(rec.a)
 
-            # Update lookup table
-            for rec in temp_list:
-                if rec.a not in lookup_table[ref_string]:
-                    lookup_table[ref_string].append(rec.a)
+                num_links += len(new_dic[ref_string])
+                for v in temp_list:
+                    list_of_traces.append(v.distance)
 
-            num_links += len(new_dic[ref_string])
-            for v in temp_list:
-                list_of_traces.append(v.distance)
+                accession_match_dict.update(new_dic2)
 
-            accession_match_dict.update(new_dic2)
+            else:
+                # instance for singletons
+                new_dic = {ref_string: None}
 
-        else:
-            # instance for singletons
-            new_dic = {ref_string: None}
+            # Update link counter for filtered dic
+            master_dict.update(new_dic)
 
-        # Update link counter for filtered dic
-        master_dict.update(new_dic)
+        # block to add
+        accession_final_dict = {}
+        counter = 1
+        for key, value in accession_match_dict.items():
+            if any([True if key in x else False for x in
+                    accession_final_dict.values()]):
+                continue
 
-    # block to add
-    accession_final_dict = {}
-    counter = 1
-    for key, value in accession_match_dict.items():
-        if any([True if key in x else False for x in
-                accession_final_dict.values()]):
-            continue
+            accession_final_dict[counter] = []
 
-        accession_final_dict[counter] = []
+            crawled_nodes = []
+            node_crawler(key, value, crawled_nodes, accession_final_dict[
+                counter], accession_match_dict)
+            counter += 1
 
-        crawled_nodes = []
-        node_crawler(key, value, crawled_nodes, accession_final_dict[
-            counter], accession_match_dict)
-        counter += 1
+        super_dic = executor(names_file, nodes_file, species_lst)
 
-    super_dic = executor(names_file, nodes_file, species_lst)
+        print("\ncommiting to db...")
+        for accession, doc in (x[2:4] for x in mp2):
+            species = " ".join(doc["name"].split("_"))
+            if species in super_dic:
+                taxa = super_dic[species]
+            else:
+                taxa = "unknown"
+            doc["taxa"] = taxa
+            # first lets check if accession is in accession_final_dict
+            # basically checks for clusters and add it to doc dict
+            clusted_id = [key for key, value in \
+                    accession_final_dict.items() if accession in value]
+            if clusted_id:
+                cluster_info = str(clusted_id[0])
+            else:
+                cluster_info = None
+            doc["cluster"] = cluster_info
 
-    print("\ncommiting to db...")
-    for accession, doc in (x[2:4] for x in mp2):
-        species = " ".join(doc["name"].split("_"))
-        if species in super_dic:
-            taxa = super_dic[species]
-        else:
-            taxa = "unknown"
-        doc["taxa"] = taxa
-        # first lets check if accession is in accession_final_dict
-        # basically checks for clusters and add it to doc dict
-        clusted_id = [key for key, value in \
-                accession_final_dict.items() if accession in value]
-        if clusted_id:
-            cluster_info = str(clusted_id[0])
-        else:
-            cluster_info = None
-        doc["cluster"] = cluster_info
+            # finally adds row to database
+            row = models.Plasmid(
+                plasmid_id = accession,
+                json_entry = doc
+            )
+            db.session.add(row)
+            db.session.commit()
 
-        # finally adds row to database
-        row = models.Plasmid(
-            plasmid_id = accession,
-            json_entry = doc
-        )
-        db.session.add(row)
-        db.session.commit()
+        # use master_dict to generate links do db
+        # writes output json for loading in vivagraph
+        out_file.write(json.dumps(master_dict))
+        out_file.close()
 
-    # use master_dict to generate links do db
-    # writes output json for loading in vivagraph
-    out_file.write(json.dumps(master_dict))
-    out_file.close()
-
-    db.session.close()
-    print("total number of nodes = {}".format(len(master_dict.keys())))
-    # master_dict
-    print("total number of links = {}".format(num_links))
+        db.session.close()
+        print("total number of nodes = {}".format(len(master_dict.keys())))
+        # master_dict
+        print("total number of links = {}".format(num_links))
     return list_of_traces
 
 

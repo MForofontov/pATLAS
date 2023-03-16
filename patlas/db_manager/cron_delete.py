@@ -4,14 +4,14 @@ import time
 import threading
 
 try:
-    from db_app import db
+    from db_app import db, app
     from db_app.models import UrlDatabase, FastaDownload
 except ImportError:
     try:
-        from patlas.db_manager.db_app import db
+        from patlas.db_manager.db_app import db, app
         from patlas.db_manager.db_app.models import UrlDatabase, FastaDownload
     except ImportError:
-        from db_manager.db_app import db
+        from db_manager.db_app import db, app
         from db_manager.db_app.models import UrlDatabase, FastaDownload
 
 
@@ -24,23 +24,25 @@ def delete_entries():
     # gets the difference between now and a day ago
     start_time = datetime.datetime.utcnow() - datetime.timedelta(days=1)
     # query the database
-    db.session.query(UrlDatabase)\
-        .filter(UrlDatabase.timestamp <= start_time) \
-        .delete()
+    with app.app_context():
+        db.session.query(UrlDatabase)\
+            .filter(UrlDatabase.timestamp <= start_time) \
+            .delete()
 
-    db.session.commit()
-    db.session.close()
+        db.session.commit()
+        db.session.close()
 
     # for downloaded sequence database every entry is deleted if they are
     # older than 15 minutes
     start_time = datetime.datetime.utcnow() - datetime.timedelta(minutes=15)
+    
+    with app.app_context():
+        db.session.query(FastaDownload) \
+            .filter(FastaDownload.timestamp <= start_time) \
+            .delete()
 
-    db.session.query(FastaDownload) \
-        .filter(FastaDownload.timestamp <= start_time) \
-        .delete()
-
-    db.session.commit()
-    db.session.close()
+        db.session.commit()
+        db.session.close()
 
 
 def delete_schedule(scheduler, interval, action, actionargs=()):

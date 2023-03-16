@@ -1,12 +1,12 @@
 # the actual file that does the structure to be imported in the database
 
 try:
-    from db_manager.db_app import db
+    from db_manager.db_app import db, app
 except ImportError:
     try:
-        from db_app import db
+        from db_app import db, app
     except ImportError:
-        from patlas.db_manager.db_app import db
+        from patlas.db_manager.db_app import db, app
 
 from sqlalchemy.dialects.postgresql import JSON
 from datetime import datetime
@@ -117,3 +117,6 @@ class MetalDatabase(db.Model):
 
     def __repr__(self):
          return "<MetalDatabase %r>" % (self.json_entry)
+
+with app.app_context():
+    db.create_all()
