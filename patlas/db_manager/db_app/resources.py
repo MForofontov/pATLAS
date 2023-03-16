@@ -74,10 +74,11 @@ req_parser.add_argument("perc_hashes", dest="perc_hashes", type=float,
 class GetSpecies(Resource):
     @marshal_with(entry_field)
     def post(self):
-        var_response = request.form["accession"].replace("[", "")\
-            .replace("]", "").replace('"', "").split(",")
-        single_query = db.session.query(Plasmid).filter(
-            Plasmid.plasmid_id.in_(var_response)).all()
+        with app.app_context():
+            var_response = request.form["accession"].replace("[", "")\
+                .replace("]", "").replace('"', "").split(",")
+            single_query = db.session.query(Plasmid).filter(
+                Plasmid.plasmid_id.in_(var_response)).all()
         return single_query
 
 
