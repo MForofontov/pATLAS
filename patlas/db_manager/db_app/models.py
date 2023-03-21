@@ -1,12 +1,12 @@
 # the actual file that does the structure to be imported in the database
 
 try:
-    from db_manager.db_app import db
+    from db_manager.db_app import db, app
 except ImportError:
     try:
-        from db_app import db
+        from db_app import db, app
     except ImportError:
-        from patlas.db_manager.db_app import db
+        from patlas.db_manager.db_app import db, app
 
 from sqlalchemy.dialects.postgresql import JSON
 from datetime import datetime
@@ -14,6 +14,7 @@ from datetime import datetime
 
 class Plasmid(db.Model):
     __tablename__ = "plasmids"
+    __table_args__ = {'extend_existing': True}
     plasmid_id = db.Column(db.String, primary_key=True)
     json_entry = db.Column(JSON)
 
@@ -35,6 +36,7 @@ class Card(db.Model):
     """
 
     __tablename__ = "card"
+    __table_args__ = {'extend_existing': True}
     plasmid_id = db.Column(db.String, primary_key=True)
     json_entry = db.Column(JSON)
 
@@ -48,6 +50,7 @@ class Positive(db.Model):
     stores entries for the vfdb database.
     """
     __tablename__ = "positive"
+    __table_args__ = {'extend_existing': True}
     plasmid_id = db.Column(db.String, primary_key=True)
     json_entry = db.Column(JSON)
 
@@ -61,6 +64,7 @@ class Database(db.Model):
     """
 
     __tablename__ = "database"
+    __table_args__ = {'extend_existing': True}
     plasmid_id = db.Column(db.String, primary_key=True)
     json_entry = db.Column(JSON)
 
@@ -75,6 +79,7 @@ class SequenceDB(db.Model):
     """
 
     __tablename__ = "sequence_db"
+    __table_args__ = {'extend_existing': True}
     plasmid_id = db.Column(db.String, primary_key=True)
     sequence_entry = db.Column(db.String)
 
@@ -89,6 +94,7 @@ class UrlDatabase(db.Model):
     through GET method in pATLAS.
     """
     __tablename__ = "url_database"
+    __table_args__ = {'extend_existing': True}
     id = db.Column(db.String, primary_key=True)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     json_entry = db.Column(JSON)
@@ -101,6 +107,7 @@ class FastaDownload(db.Model):
     through GET method in pATLAS.
     """
     __tablename__ = "fasta_database"
+    __table_args__ = {'extend_existing': True}
     unique_id = db.Column(db.String, primary_key=True)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     accessions = db.Column(db.String)
@@ -112,8 +119,12 @@ class MetalDatabase(db.Model):
     databases. For now it only has entries for the bacmet database.
     """
     __tablename__ = "metal_database"
+    __table_args__ = {'extend_existing': True}
     plasmid_id = db.Column(db.String, primary_key=True)
     json_entry = db.Column(JSON)
 
     def __repr__(self):
          return "<MetalDatabase %r>" % (self.json_entry)
+
+with app.app_context():
+    db.create_all()

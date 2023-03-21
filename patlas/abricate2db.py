@@ -6,10 +6,10 @@ import sys
 import json
 
 try:
-    from db_manager.db_app import db, models
+    from db_manager.db_app import db, app, models
     from templates.process_abricate import Abricate
 except ImportError:
-    from patlas.db_manager.db_app import db, models
+    from patlas.db_manager.db_app import db, app, models
     from patlas.templates.process_abricate import Abricate
 
 
@@ -152,35 +152,36 @@ class DbInsertion(Abricate):
         """
 
         #  are added in other method that inherits the previous ones.
-        for k, v in temp_dict.items():
-            # checks database
-            if db_type == "resistance":
-                row = models.Card(
+        with app.app_context():
+            for k, v in temp_dict.items():
+                # checks database
+                if db_type == "resistance":
+                    row = models.Card(
+                            plasmid_id=k,
+                            json_entry=v
+                        )
+                elif db_type == "plasmidfinder":
+                    row = models.Database(
                         plasmid_id=k,
                         json_entry=v
                     )
-            elif db_type == "plasmidfinder":
-                row = models.Database(
-                    plasmid_id=k,
-                    json_entry=v
-                )
-            elif db_type == "virulence":
-                row = models.Positive(
-                    plasmid_id=k,
-                    json_entry=v
-                )
-            elif db_type == "metal":
-                row = models.MetalDatabase(
-                    plasmid_id=k,
-                    json_entry=v
-                )
-            else:
-                print("Wrong db type specified in '-db' option")
-                raise SystemExit
-            # then do db magic
-            db.session.add(row)
-            db.session.commit()
-        db.session.close()
+                elif db_type == "virulence":
+                    row = models.Positive(
+                        plasmid_id=k,
+                        json_entry=v
+                    )
+                elif db_type == "metal":
+                    row = models.MetalDatabase(
+                        plasmid_id=k,
+                        json_entry=v
+                    )
+                else:
+                    print("Wrong db type specified in '-db' option")
+                    raise SystemExit
+                # then do db magic
+                db.session.add(row)
+                db.session.commit()
+            db.session.close()
 
     def get_json_file(self, list_of_filters, db_type):
         '''
