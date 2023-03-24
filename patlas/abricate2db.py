@@ -128,8 +128,7 @@ class DbInsertion(Abricate):
                 temp_dict[reference_accession]["gene"].append(gene)
                 temp_dict[reference_accession]["accession"].append(accession)
                 temp_dict[reference_accession]["seq_range"].append(seq_range)
-                temp_dict[reference_accession][
-                    "aro_accession"].append(aro_accession)
+                temp_dict[reference_accession]["aro_accession"].append(aro_accession)
 
         self.db_dump(temp_dict, db_type)
         self.get_json_file(list_of_filters, db_type)
@@ -239,7 +238,7 @@ def main():
                                    "argument. It states the database name that"
                                    "must be used.")
     parser.add_argument("-db", "--db", dest="output_psql_db",
-                        choices=["resistance", "plasmidfinder", "virulence"],
+                        choices=["resistance", "plasmidfinder", "virulence", "metal"],
                         required=True,
                         help="Provide the db to output in psql models.")
     parser.add_argument("-id", "--identity", dest="identity",
