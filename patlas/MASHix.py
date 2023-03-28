@@ -31,7 +31,7 @@ except ImportError:
 
 # TODO This is a rather sketchy solution, remove this with a refactor of node_
 #  crawler
-sys.setrecursionlimit(10000)
+sys.setrecursionlimit(1000000)
 
 
 class Record:
