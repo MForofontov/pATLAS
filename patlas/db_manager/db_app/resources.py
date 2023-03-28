@@ -118,7 +118,7 @@ class GetVirulence(Resource):
 class GetMetal(Resource):
     @marshal_with(card_field)
     def post(self):
-            with app.app_context():
+        with app.app_context():
             var_response = request.form["accession"].replace("[", "")\
                 .replace("]", "").replace('"', "").split(",")
             single_query = db.session.query(MetalDatabase).filter(
