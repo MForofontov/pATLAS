@@ -151,7 +151,7 @@ class GetAccessionPF(Resource):
     def get(self):
         # This queries name object in json_entry and retrieves an array with
         # all objects that matched the args (json_entry, plasmid_id)
-        parsed_gene = request.args['gene']('"', '')    # TODO parser for new plasmidfinder db
+        parsed_gene = request.args['gene'].replace('"', '')    # TODO parser for new plasmidfinder db
         records = db.session.query(Database).filter(
             Database.json_entry["gene"].astext.contains(parsed_gene)
         ).all()
