@@ -74,7 +74,7 @@ const taxaRequest = (g, graphics, renderer, taxa, currentColor) => {
 
   // this request searches for the presence of the queried taxa in the list
   // under json_entry.taxa
-  return $.get("api/getaccessiontaxa/", {taxa}, (data, status) => {
+  return $.get("api/getaccessiontaxa/", {'taxa': taxa}, (data, status) => {
 
     let listData = []
     for (let object in data) {

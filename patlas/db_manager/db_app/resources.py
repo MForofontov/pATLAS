@@ -125,13 +125,10 @@ class GetMetal(Resource):
 class GetAccession(Resource):
     @marshal_with(entry_field)
     def get(self):
-        # Put req_parser inside get function. Only this way it parses the
-        # request.
-        args = req_parser.parse_args()
         # This queries name object in json_entry and retrieves an array with
         # all objects that matched the args (json_entry, plasmid_id)
         records = db.session.query(Plasmid).filter(
-            Plasmid.json_entry["name"].astext == args.name
+            Plasmid.json_entry["name"].astext == request.args['name']
         ).all()
         return records
 
@@ -139,13 +136,10 @@ class GetAccession(Resource):
 class GetAccessionRes(Resource):
     @marshal_with(card_field)
     def get(self):
-        # Put req_parser inside get function. Only this way it parses the
-        # request.
-        args = req_parser.parse_args()
         # This queries name object in json_entry and retrieves an array with
         # all objects that matched the args (json_entry, plasmid_id)
         records = db.session.query(Card).filter(
-            Card.json_entry["gene"].astext.contains(args.gene)
+            Card.json_entry["gene"].astext.contains(request.args['gene'])
         ).all()
         # contains method allows us to query in array that is converted to a
         # string
@@ -155,12 +149,9 @@ class GetAccessionRes(Resource):
 class GetAccessionPF(Resource):
     @marshal_with(card_field)
     def get(self):
-        # Put req_parser inside get function. Only this way it parses the
-        # request.
-        args = req_parser.parse_args()
         # This queries name object in json_entry and retrieves an array with
         # all objects that matched the args (json_entry, plasmid_id)
-        parsed_gene = args.gene.replace('"', '')    # TODO parser for new plasmidfinder db
+        parsed_gene = request.args['gene']('"', '')    # TODO parser for new plasmidfinder db
         records = db.session.query(Database).filter(
             Database.json_entry["gene"].astext.contains(parsed_gene)
         ).all()
@@ -172,13 +163,10 @@ class GetAccessionPF(Resource):
 class GetAccessionVir(Resource):
     @marshal_with(card_field)
     def get(self):
-        # Put req_parser inside get function. Only this way it parses the
-        # request.
-        args = req_parser.parse_args()
         # This queries name object in json_entry and retrieves an array with
         # all objects that matched the args (json_entry, plasmid_id)
         records = db.session.query(Positive).filter(
-            Positive.json_entry["gene"].astext.contains(args.gene)
+            Positive.json_entry["gene"].astext.contains(request.args['gene'])
         ).all()
         # contains method allows us to query in array that is converted to a
         # string
@@ -188,13 +176,10 @@ class GetAccessionVir(Resource):
 class GetAccessionMetal(Resource):
     @marshal_with(card_field)
     def get(self):
-        # Put req_parser inside get function. Only this way it parses the
-        # request.
-        args = req_parser.parse_args()
         # This queries name object in json_entry and retrieves an array with
         # all objects that matched the args (json_entry, plasmid_id)
         records = db.session.query(MetalDatabase).filter(
-            MetalDatabase.json_entry["gene"].astext.contains(args.gene)
+            MetalDatabase.json_entry["gene"].astext.contains(request.args['gene'])
         ).all()
         # contains method allows us to query in array that is converted to a
         # string
@@ -204,13 +189,10 @@ class GetAccessionMetal(Resource):
 class GetAccessionTaxa(Resource):
     @marshal_with(entry_field)
     def get(self):
-        # Put req_parser inside get function. Only this way it parses the
-        # request.
-        args = req_parser.parse_args()
         # This queries name object in json_entry and retrieves an array with
         # all objects that matched the args (json_entry, plasmid_id)
         records = db.session.query(Plasmid).filter(
-            Plasmid.json_entry["taxa"].astext.contains(args.taxa)
+            Plasmid.json_entry["taxa"].astext.contains(request.args['taxa'])
         ).all()
         # contains method allows us to query in array that is converted to a
         # string
@@ -220,15 +202,12 @@ class GetAccessionTaxa(Resource):
 class GetPlasmidName(Resource):
     @marshal_with(entry_field)
     def get(self):
-        # Put req_parser inside get function. Only this way it parses the
-        # request.
-        args = req_parser.parse_args()
         # This queries if input plasmid name is present in db
         # func.lower() function from sqalchemy allows the user to make case
         # insensitive searches
         records = db.session.query(Plasmid).filter(func.lower(
             Plasmid.json_entry["plasmid_name"].astext) == func.lower(
-            args.plasmid_name)).first()
+            request.args['plasmid_name'])).first()
         # contains method allows us to query in array that is converted to a
         # string
         return records
@@ -236,13 +215,10 @@ class GetPlasmidName(Resource):
 
 class GetAccessionHashes(Resource):
     def get(self):
-        # Put req_parser inside get function. Only this way it parses the
-        # request.
-        args = req_parser.parse_args()
 
         # convert values to decimal instead of percentages and the convert it
         # back to string
-        query_hash_cutoff = float(args.perc_hashes) * 0.01
+        query_hash_cutoff = float(request.args['perc_hashes']) * 0.01
 
         # Fetch all entries
         records = db.session.query(Plasmid).all()
