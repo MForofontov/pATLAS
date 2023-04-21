@@ -16,6 +16,8 @@ from multiprocessing import Pool
 from functools import partial
 import tqdm
 import json
+import pickle
+import networkx as nx
 from collections import defaultdict
 
 try:
@@ -582,7 +584,7 @@ def multiprocess_mash(ref_sketch, output_tag, kmer_size,
 
 
 def multiprocess_mash_file(sequence_info, pvalue, mashdist,
-                           in_folder, infile):
+                           in_folder,pickle_out, infile):
     """
     Executes multiprocess for mash file
 
@@ -602,6 +604,7 @@ def multiprocess_mash_file(sequence_info, pvalue, mashdist,
     input_f = open(os.path.join(in_folder, infile), 'r')
     temporary_list = []
     #  mash dist specified in each sequence/genome
+
     for line in input_f:
         tab_split = line.split("\t")
         ref_accession = "_".join(tab_split[0].strip().split("_")[0:3])
@@ -628,6 +631,7 @@ def multiprocess_mash_file(sequence_info, pvalue, mashdist,
                 ref_accession != seq_accession and \
                 float(mash_dist) < float(mashdist):
             temporary_list.append(rec)
+    pickle_file = os.path.join(pickle_out, seq_accession)
 
     # Get modified reference accession
     string_sequence = "{}_{}".format(seq_accession,
@@ -653,9 +657,9 @@ def multiprocess_mash_file(sequence_info, pvalue, mashdist,
                "significantLinks": [rec.get_dict() for rec in
                                     temporary_list],
                }
+        with open(pickle_file, 'wb') as outfile:
+            pickle.dump([temporary_list, string_sequence, exportable_accession, doc], outfile)
 
-    # used for graphics visualization
-        return temporary_list, string_sequence, exportable_accession, doc
     # When temporary_list is empty, return tuple for consistency
     else:
         # return singletons
@@ -663,49 +667,65 @@ def multiprocess_mash_file(sequence_info, pvalue, mashdist,
                "length": length,
                "plasmid_name": plasmid_name,
                "significantLinks": None}
+        
+        with open(pickle_file, 'wb') as outfile:
+            pickle.dump([None, string_sequence, exportable_accession, doc], outfile)
+        
+    return pickle_file
 
-        return None, string_sequence, exportable_accession, doc
 
+# def node_crawler(node, links, crawled_nodes, cluster_array, master_dict):
+#     """
+#     A function that enables to crawl nodes in order to get the relationships
+#     between all the nodes, getting to know which nodes are in the same
+#     cluster and adding it to master_dict that will be dumped to the db.
 
-def node_crawler(node, links, crawled_nodes, cluster_array, master_dict):
-    """
-    A function that enables to crawl nodes in order to get the relationships
-    between all the nodes, getting to know which nodes are in the same
-    cluster and adding it to master_dict that will be dumped to the db.
+#     Parameters
+#     ----------
+#     node: str
+#         An accession number
+#     links: list
+#         A list with all links of that accession number
+#     crawled_nodes: list
+#         A list of all nodes that were crawled already for this cluster
+#     cluster_array: list
+#         A list that stores all related accessions within a cluster
+#     master_dict: dict
+#         The dictionary that stores all nodes and links
 
-    Parameters
-    ----------
-    node: str
-        An accession number
-    links: list
-        A list with all links of that accession number
-    crawled_nodes: list
-        A list of all nodes that were crawled already for this cluster
-    cluster_array: list
-        A list that stores all related accessions within a cluster
-    master_dict: dict
-        The dictionary that stores all nodes and links
+#     """
 
-    """
+#     if node in crawled_nodes:
+#         return
+#     else:
+#         crawled_nodes.append(node)
 
-    if node in crawled_nodes:
-        return
-    else:
-        crawled_nodes.append(node)
+#     if node not in cluster_array:
+#         cluster_array.append(node)
 
-    if node not in cluster_array:
-        cluster_array.append(node)
+#     for link in links:
+#         if link not in cluster_array:
+#             cluster_array.append(link)
+#         # recursively crawl through all accessions linked to node
 
-    for link in links:
-        if link not in cluster_array:
-            cluster_array.append(link)
-        # recursively crawl through all accessions linked to node
+#         try:
+#             node_crawler(link, master_dict[link], crawled_nodes,
+#                         cluster_array, master_dict)
+#         except KeyError:
+#             continue
 
-        try:
-            node_crawler(link, master_dict[link], crawled_nodes,
-                        cluster_array, master_dict)
-        except KeyError:
-            continue
+def clustering(accession_match_dict):
+    cluster_array = nx.Graph(accession_match_dict)
+    
+    cluster_id = 1
+    cluster_dict = {}
+
+    for cluster in [list(c) for c in nx.connected_components(cluster_array)]:
+        cluster_dict[cluster_id] = cluster
+
+        cluster_id += 1
+
+    return cluster_dict
 
 
 def mash_distance_matrix(mother_directory, sequence_info, pvalue, mashdist,
@@ -735,6 +755,10 @@ def mash_distance_matrix(mother_directory, sequence_info, pvalue, mashdist,
     in_folder = os.path.join(mother_directory, "genome_sketchs", "dist_files")
     out_file = open(os.path.join(mother_directory, "results",
                                  "import_to_vivagraph.json"), "w")
+
+    pickle_out = os.path.join(mother_directory,"pickles")
+    os.mkdir(pickle_out)
+
     master_dict = {}  # A dictionary to store all distances to all references of
     accession_match_dict = {}
     lookup_table = defaultdict(list)
@@ -746,7 +770,7 @@ def mash_distance_matrix(mother_directory, sequence_info, pvalue, mashdist,
     pool = Pool(int(threads))  # Create a multiprocessing Pool
     mp2 = pool.map(
         partial(multiprocess_mash_file, sequence_info, pvalue, mashdist,
-                in_folder), list_mash_files)  # process list_mash_files
+                in_folder, pickle_out), list_mash_files)  # process list_mash_files
     # iterable with pool
     # loop to print a nice progress bar
     try:
@@ -763,7 +787,10 @@ def mash_distance_matrix(mother_directory, sequence_info, pvalue, mashdist,
     num_links = 0
     list_of_traces = []
     with app.app_context():
-        for temp_list, ref_string in (x[:2] for x in mp2):
+        for file_path in mp2:
+            with open(file_path, 'rb') as infile:
+                temp_list, ref_string, _ , _ = pickle.load(infile)
+        #for temp_list, ref_string in (x[:2] for x in mp2):
 
             # Example of iteration `dic` and lookup table.
             # dic1 = {"Ac1": [rec2, rec3, rec4]}
@@ -798,26 +825,60 @@ def mash_distance_matrix(mother_directory, sequence_info, pvalue, mashdist,
 
             # Update link counter for filtered dic
             master_dict.update(new_dic)
+        
+        total_nodes = len(master_dict.keys())
+        out_file.write(json.dumps(master_dict))
+        out_file.close()
 
+        print(num_links)
         # block to add
-        accession_final_dict = {}
-        counter = 1
-        for key, value in accession_match_dict.items():
-            if any([True if key in x else False for x in
-                    accession_final_dict.values()]):
-                continue
+        # accession_final_dict = {}
+        # counter = 1
+        # for key, value in accession_match_dict.items():
+        #     if any([True if key in x else False for x in
+        #             accession_final_dict.values()]):
+        #         continue
+        #     print(counter)
+        #     accession_final_dict[counter] = []
 
-            accession_final_dict[counter] = []
+        #     crawled_nodes = []
+        #     node_crawler(key, value, crawled_nodes, accession_final_dict[
+        #         counter], accession_match_dict)
+        #     counter += 1
 
-            crawled_nodes = []
-            node_crawler(key, value, crawled_nodes, accession_final_dict[
-                counter], accession_match_dict)
-            counter += 1
+        print("***********************************")
+        print("Clustering nodes...\n")
+        accession_final_dict = clustering(accession_match_dict)
+
+        # with open(os.path.join(mother_directory,"accession_final_dict"),'w') as file:
+        #     file.write(json.dumps(accession_final_dict))
+        
+        # with open(os.path.join(mother_directory,"accession_match_dict"),'w') as file:
+        #     file.write(json.dumps(accession_match_dict))
+        
+        # with open(os.path.join(mother_directory,"crawled_nodes"),'w') as file:
+        #     file.write(json.dumps(crawled_nodes))
+
+        # with open(os.path.join(mother_directory,"cluster_dict"),'w') as file:
+        #     file.write(json.dumps(cluster_dict))       
+
+        # for key, values in cluster_dict.items():
+        #     if key in accession_final_dict:
+        #         diff = set(values).difference(set(accession_final_dict[key]))
+        #         if len(diff) > 0:
+        #             print(diff)
+        #     else:
+        #         print("missing")
+        #         print(key)
 
         super_dic = executor(names_file, nodes_file, species_lst)
 
         print("\ncommiting to db...")
-        for accession, doc in (x[2:4] for x in mp2):
+        for file_path in mp2:
+            with open(file_path, 'rb') as infile:
+                _ , _ , accession , doc = pickle.load(infile)
+
+        #for accession, doc in (x[2:4] for x in mp2):
             species = " ".join(doc["name"].split("_"))
             if species in super_dic:
                 taxa = super_dic[species]
@@ -844,11 +905,11 @@ def mash_distance_matrix(mother_directory, sequence_info, pvalue, mashdist,
 
         # use master_dict to generate links do db
         # writes output json for loading in vivagraph
-        out_file.write(json.dumps(master_dict))
-        out_file.close()
+        #out_file.write(json.dumps(master_dict))
+        #out_file.close()
 
         db.session.close()
-        print("total number of nodes = {}".format(len(master_dict.keys())))
+        print("total number of nodes = {}".format(total_nodes))
         # master_dict
         print("total number of links = {}".format(num_links))
     return list_of_traces
